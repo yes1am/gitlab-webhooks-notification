@@ -4,7 +4,7 @@
 
 # Gitlab Webhooks 提醒服务
 
-## 使用
+## 1. 使用
 
 1. npm install && npm install pm2 -g
 2. 在根目录新建 `webhooks.config.js`，配置发送消息的代码，示例:
@@ -41,3 +41,9 @@ module.exports = {
    3. 勾选 Trigger: `Merge request events`，`Pipeline events`
    4. 点击 `Add Webhook`
 5. 配置完毕，当 Git 仓库发生 `Merge request events` 或 `Pipeline events` 时，即可收到消息。
+
+## 2. 配置 webhook URL
+
+1. 指定 token: `http://your.site?token=xxxx`  
+
+2. 指定 Pipeline 触发分支: `http://your.site?token=xxxx&ref=test`, 则 test 分支上的 Pipeline 会触发消息，且默认 `master` 分支的 Pipeline 一定会触发消息。

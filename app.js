@@ -5,10 +5,12 @@ const { sendMessage } = require('./webhooks.config');
 
 app.use(bodyParser.json())
 
+const SKIP_SEND_MESSAGE = 'SKIP SEND MESSAGE'
+
 const MERGE_REQUEST = 'merge request hook';
 const PIPELINE = 'pipeline hook';
 
-const handleMergeRequest = async (body = {}) => {
+const handleMergeRequest = async (body = {}, query = {}) => {
   const { user = {}, project = {}, object_attributes: attributes = {} } = body;
   // 用户名
   const { name: userName } = user;
@@ -18,14 +20,25 @@ const handleMergeRequest = async (body = {}) => {
   return `Merge request:\n\n${userName}: [${sourceBranch}] => [${targetBranch}] \n状态: ${state}\nLink: ${url}`;
 }
 
-const handlePipeline = async (body) => {
+const handlePipeline = async (body, query = {}) => {
+  const { ref = '' } = query;
+  let refsArr = ref.split(',').filter(Boolean);
+  refsArr = [...new Set(refsArr.concat(['master']))];  // 默认 master 会发送通知消息
   const { user = {}, project = {}, object_attributes: attributes = {}, commit = {} } = body;
   // 用户名
-  const { status } = attributes;
+  const { status, ref: sourceBranch } = attributes;
   const { url, author = {} } = commit;
   const { name: userName } = author
 
-  return `Pipeline:\n\n${userName}: Status ${status} \nLink: ${url}`;
+  if(status === 'pending') {
+    return SKIP_SEND_MESSAGE;
+  }
+
+  if(refsArr.includes(sourceBranch)) {
+    return `Pipeline:\n\n${userName}: Status ${status} \nLink: ${url}`;
+  } else {
+    return SKIP_SEND_MESSAGE;
+  }
 }
 
 
@@ -46,9 +59,11 @@ app.post('/', async function (req, res) {
     if(eventType === MERGE_REQUEST) {
       message = await handleMergeRequest(body);
     } else if(eventType === PIPELINE) {
-      message = await handlePipeline(body);
+      message = await handlePipeline(body, query);
     }
-    await sendMessage(message, token)
+    if(message !== SKIP_SEND_MESSAGE) {
+      await sendMessage(message, token)
+    }
   } catch (e) {
     console.log('发生错误', e);
   }
