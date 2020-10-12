@@ -9,6 +9,7 @@ const SKIP_SEND_MESSAGE = 'SKIP SEND MESSAGE'
 
 const MERGE_REQUEST = 'merge request hook';
 const PIPELINE = 'pipeline hook';
+const JOB = 'job hook';
 
 const handleMergeRequest = async (body = {}, query = {}) => {
   const { user = {}, project = {}, object_attributes: attributes = {} } = body;
@@ -17,7 +18,7 @@ const handleMergeRequest = async (body = {}, query = {}) => {
   // 项目名和项目地址
   const { name: projectName, web_url: projectUrl } = project;
   const { source_branch: sourceBranch, target_branch: targetBranch, url, state } = attributes;
-  return `Merge request:\n\n${userName}: [${sourceBranch}] => [${targetBranch}] \n状态: ${state}\nLink: ${url}`;
+  return `Merge request: \n作者: ${userName} \nMR 分支: [${sourceBranch}] => [${targetBranch}] \n状态: ${state} \n链接: ${url}`;
 }
 
 const handlePipeline = async (body, query = {}) => {
@@ -30,12 +31,35 @@ const handlePipeline = async (body, query = {}) => {
   const { url, author = {} } = commit;
   const { name: userName } = author
 
-  if(status === 'pending') {
+  // 不发送 pending 状态
+  if(['pending'].includes(status)) {
     return SKIP_SEND_MESSAGE;
   }
 
   if(refsArr.includes(sourceBranch)) {
-    return `Pipeline:\n\n${userName}: Status ${status} \nLink: ${url}`;
+    return `Pipeline: \n作者: ${userName} \n状态: ${status} \n链接: ${url}`;
+  } else {
+    return SKIP_SEND_MESSAGE;
+  }
+}
+
+const handleJob = async (body, query = {}) => {
+  const { ref = '' } = query;
+  let refsArr = ref.split(',').filter(Boolean);
+  refsArr = [...new Set(refsArr.concat(['master']))];  // 默认 master 会发送通知消息
+  const { build_stage: stage, build_status: status, commit = {}, ref: sourceBranch } = body;
+  const { author_name: userName, message } = commit
+
+  // 不发送 pending，created, running 状态
+  if(['pending', 'created', 'running'].includes(status)) {
+    return SKIP_SEND_MESSAGE;
+  }
+  if(refsArr.includes(sourceBranch)) {
+    if(stage === 'publish') {
+      // publish 时带上 commit message 信息作为版本
+      return `Job: \n作者: ${userName} \nStage: ${stage} \n版本: ${message} \n状态: ${status}`;
+    }
+    return `Job: \n作者: ${userName} \nStage: ${stage} \n状态: ${status}`;
   } else {
     return SKIP_SEND_MESSAGE;
   }
@@ -60,8 +84,10 @@ app.post('/', async function (req, res) {
       message = await handleMergeRequest(body);
     } else if(eventType === PIPELINE) {
       message = await handlePipeline(body, query);
+    } else if(eventType === JOB) {
+      message = await handleJob(body, query);
     }
-    if(message !== SKIP_SEND_MESSAGE) {
+    if(message && message !== SKIP_SEND_MESSAGE) {
       await sendMessage(message, token)
     }
   } catch (e) {
@@ -70,6 +96,6 @@ app.post('/', async function (req, res) {
   res.send('Hello World!');
 });
 
-app.listen(3000, function () {
-  console.log('Example app listening on port 3000!');
+app.listen(3002, function () {
+  console.log('Example app listening on port 3002!');
 });
