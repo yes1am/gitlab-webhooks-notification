@@ -28,6 +28,8 @@ const handlePipeline = async (body, query = {}) => {
   const { user = {}, project = {}, object_attributes: attributes = {}, commit = {} } = body;
   // 用户名
   const { status, ref: sourceBranch } = attributes;
+  console.log('====pipeline====');
+  console.log(body);
   const { url, author = {} } = commit;
   const { name: userName } = author
 
@@ -43,18 +45,18 @@ const handlePipeline = async (body, query = {}) => {
   }
 }
 
-const handleJob = async (body, query = {}) => {
-  const { ref = '' } = query;
-  let refsArr = ref.split(',').filter(Boolean);
-  refsArr = [...new Set(refsArr.concat(['master']))];  // 默认 master 会发送通知消息
-  const { build_stage: stage, build_status: status, commit = {}, ref: sourceBranch } = body;
+const handleJob = async (body) => {
+  const { build_stage: stage, build_status: status, commit = {} } = body;
   const { author_name: userName, message } = commit
+  console.log('====job====');
+  console.log(body);
 
   // 不发送 pending，created, running 状态
   if(['pending', 'created', 'running'].includes(status)) {
     return SKIP_SEND_MESSAGE;
   }
-  if(refsArr.includes(sourceBranch)) {
+  // publish 和 deploy 会发送消息
+  if(['publish', 'deploy'].includes(stage)) {
     if(stage === 'publish') {
       // publish 时带上 commit message 信息作为版本
       return `Job: \n作者: ${userName} \nStage: ${stage} \n版本: ${message} \n状态: ${status}`;
@@ -96,6 +98,6 @@ app.post('/', async function (req, res) {
   res.send('Hello World!');
 });
 
-app.listen(3002, function () {
-  console.log('Example app listening on port 3002!');
+app.listen(3000, function () {
+  console.log('Example app listening on port 3000!');
 });
